@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NeuroFace Sense — AI Facial Motor Analysis for Stroke Rehab</title>
+<meta name="description" content="Browser-based facial movement prototype using webcam and MediaPipe Face Mesh. Research demo only, not a medical device." />
+<link rel="stylesheet" href="style.css" />
+<!-- The live camera uses FaceMesh. Untrained TensorFlow models are not loaded. -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+</head>
+<body>
+<div class="bg-orbs"><span class="orb o1"></span><span class="orb o2"></span><span class="orb o3"></span></div>
+
+<header class="topbar glass">
+  <div class="brand">
+    <div class="logo">NF</div>
+    <div>
+      <h1>NEUROFACE <span>SENSE</span></h1>
+      <p>AI-Based Facial Motor Analysis · Stroke Rehab Prototype</p>
+    </div>
+  </div>
+  <div class="top-actions">
+    <a class="btn ghost" href="./fingerspeak.html">✋ FingerSpeak hand communication</a>
+    <div class="pill" id="modelStatus"><span class="dot idle"></span> models: loading…</div>
+    <div class="pill" id="camStatus"><span class="dot idle"></span> camera: off</div>
+    <button class="btn primary" id="btnCamera">▶ Start Camera</button>
+    <button class="btn ghost" id="btnDemo">Demo Mode</button>
+    <button class="btn accent" id="btnCalibrate">◉ Calibrate Patient</button>
+  </div>
+</header>
+
+<div class="disclaimer glass">
+  ⚠ <strong>Research / demo prototype only — NOT a medical diagnostic device.</strong>
+  Camera processing runs locally. Optional Maira snapshot upload requires your explicit action.
+  <span id="fpsBadge">FPS — · conf —</span>
+</div>
+
+<main class="grid">
+  <section class="card glass span2">
+    <h2>✋ FingerSpeak <small>Hand gesture communication</small></h2>
+    <p>Use a separate hand-tracking mode to calibrate personal gestures and speak chosen phrases. It uses the camera only when you open the module and enable it; facial tracking stops when you leave this page.</p>
+    <a class="btn primary" href="./fingerspeak.html">Open FingerSpeak →</a>
+  </section>
+  <!-- 1. Camera view -->
+  <section class="card glass span2">
+    <div class="card-head">
+      <h2>◉ Camera View <small>Module 1 · Landmark tracking</small></h2>
+      <div class="controls">
+        <label class="switch"><input type="checkbox" id="tglOverlay" checked /><span></span> points</label>
+        <label class="switch"><input type="checkbox" id="tglMesh" checked /><span></span> mesh</label>
+        <label class="switch"><input type="checkbox" id="tglFlow" /><span></span> flow regions</label>
+        <select id="selCamera"><option value="">default camera</option></select>
+        <button class="btn small" id="btnSnapshot">⤓ Snapshot</button>
+      </div>
+    </div>
+    <div class="cam-wrap">
+      <video id="video" playsinline muted></video>
+      <canvas id="overlay"></canvas>
+      <div class="cam-hud">
+        <div id="hudGaze">gaze: —</div>
+        <div id="hudHead">yaw — · pitch — · roll —</div>
+      </div>
+    </div>
+    <div class="kv-row">
+      <div class="kv"><span>Processed FPS</span><b id="vFps">—</b></div>
+      <div class="kv"><span>Frame processing</span><b id="vInferMs">—</b></div>
+      <div class="kv"><span>Tracking quality (proxy)</span><b id="vConf">—</b></div>
+      <div class="kv"><span>Face present</span><b id="vFace">no</b></div>
+      <div class="kv"><span>CNN (untrained / excluded)</span><b id="vCnn">—</b></div>
+      <div class="kv"><span>Temporal recognition</span><b id="vTemporal">—</b></div>
+    </div>
+    <div class="kv-row">
+      <div class="kv"><span>Pipeline: camera</span><b id="pdCam">off</b></div>
+      <div class="kv"><span>Frames sent</span><b id="pdSent">0</b></div>
+      <div class="kv"><span>Mesh results</span><b id="pdResults">0</b></div>
+      <div class="kv"><span>Landmarks</span><b id="pdLm">—</b></div>
+      <div class="kv"><span>Pipeline errors</span><b id="pdErr">0</b></div>
+    </div>
+    <div class="kv"><span>Last pipeline error</span><b id="pdErrMsg">—</b></div>
+    <div class="row"><button class="btn small ghost" id="btnTestBlink">⚡ isolated synthetic blink test</button><button class="btn small ghost" id="btnEyeCheck">👁 check my eye signal (guided 5s)</button></div>
+  </section>
+
+  <!-- 2. Motor score -->
+  <section class="card glass">
+    <h2>♥ Facial Signal Consistency <small>tracking proxy · not a measure of motor ability</small></h2>
+    <div class="score-ring">
+      <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="ring-bg"/><circle id="ringMotor" cx="60" cy="60" r="52" class="ring-fg"/></svg>
+      <div><b id="vMotor">—</b><span>tracking consistency</span></div>
+    </div>
+    <div class="bars">
+      <div class="bar"><label>Eye signal <b id="vEyeScore">—</b></label><div class="track"><i id="bEye"></i></div></div>
+      <div class="bar"><label>Lip signal <b id="vLipScore">—</b></label><div class="track"><i id="bLip"></i></div></div>
+      <div class="bar"><label>Smile balance <b id="vSmileScore">—</b></label><div class="track"><i id="bSmile"></i></div></div>
+      <div class="bar"><label>Head signal <b id="vHeadScore">—</b></label><div class="track"><i id="bHead"></i></div></div>
+    </div>
+    <div id="alertStrip" class="alerts"></div>
+    <p id="scoreQuality" class="hint">100% means the visible signals look consistent, not that facial motor ability has been clinically measured. No smile or blink is required at rest.</p>
+  </section>
+
+  <!-- 3. Eye -->
+  <section class="card glass">
+    <h2>👁 Eye Analysis <small>Module 2</small></h2>
+    <div class="kv-row">
+      <div class="kv"><span>Status</span><b id="vBlink">—</b></div>
+      <div class="kv"><span>Duration</span><b id="vBlinkDur">—</b></div>
+      <div class="kv"><span>Rate /min</span><b id="vBlinkRate">—</b></div>
+    </div>
+    <div class="kv-row">
+      <div class="kv"><span>EAR L</span><b id="vEarL">—</b></div>
+      <div class="kv"><span>EAR R</span><b id="vEarR">—</b></div>
+      <div class="kv"><span>L–R Δ</span><b id="vEarDiff">—</b></div>
+    </div>
+    <canvas id="earChart" width="300" height="70"></canvas>
+    <div class="kv"><span>Signal debug</span><b id="vEyeDbg">—</b></div>
+    <div class="kv"><span>Gaze</span><b id="vGaze">—</b></div>
+  </section>
+
+  <!-- 4. Muscle AUs -->
+  <section class="card glass">
+    <h2>💪 Muscle Activity <small>Module 3 · movement features</small></h2>
+    <div id="auGrid" class="au-grid"></div>
+    <p id="auStatus" class="hint">Start the camera, then hold a relaxed face briefly to set this session’s neutral reference.</p>
+    <button class="btn small ghost" id="btnAuReset">↺ Relearn neutral activity baseline</button>
+    <p class="hint">At rest, 0% is expected. Raise/lower brows, lift cheeks, smile, stretch lips or open your mouth to test each bar. These are geometry indicators, not validated clinical AU estimates.</p>
+  </section>
+
+  <!-- 5. Smile -->
+  <section class="card glass">
+    <h2>☺ Smile & Symmetry <small>Module 4</small></h2>
+    <div class="score-ring small">
+      <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="ring-bg"/><circle id="ringSym" cx="60" cy="60" r="52" class="ring-fg green"/></svg>
+      <div><b id="vSym">—</b><span>symmetry %</span></div>
+    </div>
+    <div class="kv-row">
+      <div class="kv"><span>Intensity</span><b id="vSmileInt">—</b></div>
+      <div class="kv"><span>L corner</span><b id="vSmileL">—</b></div>
+      <div class="kv"><span>R corner</span><b id="vSmileR">—</b></div>
+    </div>
+    <div class="kv"><span>Assessment</span><b id="vSymNote">—</b></div>
+  </section>
+
+  <!-- 6. Lip -->
+  <section class="card glass">
+    <h2>👄 Lip Control <small>Module 5</small></h2>
+    <div class="kv-row">
+      <div class="kv"><span>Gesture</span><b id="vLipGesture">—</b></div>
+      <div class="kv"><span>MAR</span><b id="vMar">—</b></div>
+      <div class="kv"><span>Pucker</span><b id="vPucker">—</b></div>
+    </div>
+    <canvas id="marChart" width="300" height="70"></canvas>
+    <div class="kv"><span>Involuntary</span><b id="vLipInv">none</b></div>
+    <div class="kv-row">
+      <div class="kv"><span>Lip deviation</span><b id="vDev">—</b></div>
+      <div class="kv"><span>Affect (sad/pain)</span><b id="vAffect">—</b></div>
+    </div>
+  </section>
+
+  <!-- 7. Twitch -->
+  <section class="card glass">
+    <h2>⚡ Micro-Twitch <small>Module 6 · temporal + flow</small></h2>
+    <div class="kv-row">
+      <div class="kv"><span>Eyelid flow</span><b id="vFlowEye">—</b></div>
+      <div class="kv"><span>Lip flow</span><b id="vFlowLip">—</b></div>
+      <div class="kv"><span>Cheek flow</span><b id="vFlowCheek">—</b></div>
+    </div>
+    <div class="kv-row">
+      <div class="kv"><span>Motion state</span><b id="vMotion">—</b></div>
+      <div class="kv"><span>Tremor band</span><b id="vTremor">—</b></div>
+    </div>
+    <canvas id="motionChart" width="300" height="70"></canvas>
+  </section>
+
+  <!-- 8. Head -->
+  <section class="card glass">
+    <h2>🧭 Head Movement <small>Module 7</small></h2>
+    <div class="kv-row">
+      <div class="kv"><span>Yaw</span><b id="vYaw">—</b></div>
+      <div class="kv"><span>Pitch</span><b id="vPitch">—</b></div>
+      <div class="kv"><span>Roll</span><b id="vRoll">—</b></div>
+    </div>
+    <div class="kv"><span>Pose</span><b id="vPose">—</b></div>
+    <div class="kv"><span>Nod detected</span><b id="vNod">—</b></div>
+  </section>
+
+  <!-- 9. Log -->
+  <section class="card glass">
+    <h2>📋 Activity Log <small>observed movement features</small></h2>
+    <div id="logList" class="log"><div class="log-empty">No events yet — start the camera.</div></div>
+    <div class="row"><button class="btn small ghost" id="btnClearLog">clear</button><button class="btn small ghost" id="btnExport">⤓ export JSON</button></div>
+    <div class="row"><button class="btn small ghost" id="btnTestDev">test: deviation</button><button class="btn small ghost" id="btnTestSad">test: sad</button><button class="btn small ghost" id="btnTestPain">test: pain</button></div>
+    <div class="row"><button class="btn small ghost" id="btnSmileCheck">😁 check smile signal range</button><button class="btn small ghost" id="btnDevCheck">↔ deviation check (personal threshold)</button></div>
+  </section>
+
+  <!-- Maira cloud AI -->
+  <section class="card glass">
+    <h2>☁ Maira Cloud AI <small>optional second opinion · opt-in</small></h2>
+    <div class="pill" id="mairaStatus"><span class="dot idle"></span> checking…</div>
+    <div class="fields">
+      <label>API base <input id="mairaBase" type="text" inputmode="url" placeholder="https://api.recommender.gigalogy.com" /></label>
+      <label>User ID <input id="mairaUser" type="text" autocomplete="off" placeholder="required" /></label>
+      <label>Project key <input id="mairaProject" type="password" autocomplete="off" placeholder="optional" /></label>
+      <label>API key <input id="mairaKey" type="password" autocomplete="off" placeholder="optional" /></label>
+      <label>Bearer token <input id="mairaBearer" type="password" autocomplete="off" placeholder="required unless API key" /></label>
+      <label>GPT profile ID <input id="mairaProfile" type="text" autocomplete="off" placeholder="optional" /></label>
+    </div>
+    <div class="row">
+      <button class="btn small primary" id="btnMairaSave">save keys (this browser only)</button>
+      <button class="btn small ghost" id="btnMairaTest">test link</button>
+      <button class="btn small ghost" id="btnMairaClear">forget keys</button>
+    </div>
+    <div class="row">
+      <button class="btn small accent" id="btnMairaAnalyze">✦ premium session analysis</button>
+      <button class="btn small ghost" id="btnMairaVision">◉ vision second opinion</button>
+    </div>
+    <div id="mairaResult" class="log"><div class="log-empty">Local pipeline runs fully offline. Configure keys above, then run a premium analysis — snapshots leave this device only to your configured API.</div></div>
+    <p class="hint">Keys stay in this browser's localStorage — never in code. Research demo, not a diagnosis.</p>
+  </section>
+
+  <!-- 10. Comm mode -->
+  <section class="card glass span2">
+    <h2>💬 Communication Mode <small>intentional patient commands</small></h2>
+    <div class="comm-grid">
+      <div class="comm-map">
+        <div class="cmd-rule"><b>3× intentional blink</b><span>looking at camera → “I need water”</span><i id="progWater">0/3</i></div>
+        <div class="cmd-rule"><b>3× head left</b><span>turn + return → “I need food”</span><i id="progFood">0/3</i></div>
+        <div class="cmd-rule"><b>3× head right</b><span>turn + return → “I need to go to toilet”</span><i id="progToilet">0/3</i></div>
+        <div class="cmd-rule"><b>Nod + smile</b><span>together → “I am okay, thank you”</span><i id="progOkay">—</i></div>
+        <label class="switch"><input type="checkbox" id="tglComm" checked /><span></span> enable commands</label>
+        <label class="switch"><input type="checkbox" id="tglVoice" /><span></span> speak commands</label>
+      </div>
+      <div class="comm-out">
+        <div class="cmd-display" id="cmdDisplay">—</div>
+        <div id="cmdLog" class="log small"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Calibration modal -->
+<div class="modal hidden" id="calModal">
+  <div class="modal-box glass">
+    <h2>◉ Patient Calibration <small>Module 8 · builds your Facial Digital Twin</small></h2>
+    <p id="calStep">Step 1/13 — Neutral face: relax, look at camera…</p>
+    <div class="track big"><i id="calBar"></i></div>
+    <p id="calQuality" class="hint" role="status"></p>
+    <p id="calLive" class="hint"></p>
+    <p id="calValidation" class="hint"></p>
+    <div class="row">
+      <button class="btn primary" id="btnCalNext">Capture step</button>
+      <button class="btn ghost" id="btnCalSkip">Retry step</button>
+      <button class="btn ghost" id="btnCalClose">Close</button>
+      <button class="btn small danger" id="btnCalReset">reset twin</button>
+    </div>
+    <div class="row"><select id="calRetryGesture" aria-label="Gesture to recalibrate"><option value="blink">Blink</option><option value="closedSmile">Closed smile</option><option value="smile">Comfortable smile</option><option value="pucker">Pucker</option><option value="left">Left return</option><option value="right">Right return</option><option value="nod">Nod</option></select><button class="btn small" id="btnCalRetry">Recalibrate selected gesture</button></div>
+    <p class="hint">Robust numeric baselines, movement ranges, timing and validation are stored in <b>IndexedDB</b>. No raw video is recorded. Poor-quality capture pauses; every required step must pass.</p>
+    <div id="twinStatus" class="pill">twin: none</div>
+  </div>
+</div>
+
+<footer class="foot">NeuroFace Sense · MediaPipe Face Mesh · local camera analysis · research demo — not a medical device · <span id="tfBackend">untrained models excluded</span></footer>
+
+<script src="utils/landmarks.js"></script>
+<script src="utils/metrics.js"></script>
+<script src="src/eye-signal.js"></script>
+<script src="src/lip-watch.js"></script>
+<script src="src/activity.js"></script>
+<script src="utils/maira.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

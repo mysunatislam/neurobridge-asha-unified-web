@@ -1,0 +1,1 @@
+{"model":"neuroface-temporal","input":[150,12],"classes":["Normal movement","Reduced movement","Asymmetric movement","Twitch detected","Tremor detected"],"builtAtRuntime":true,"note":"LSTM32/Dense24/Dropout0.2/Softmax5 on 5s fused feature windows. Built in-browser, random-init demo weights; heuristics ground the scores."}

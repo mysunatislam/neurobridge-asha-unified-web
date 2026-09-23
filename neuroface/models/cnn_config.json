@@ -1,0 +1,1 @@
+{"model":"neuroface-cnn","input":[64,64,1],"embedding":16,"builtAtRuntime":true,"note":"Conv16/MaxPool/Conv32/MaxPool/Conv32/GAP/Dense32/Dense16-tanh. Built in-browser by utils/tf-models.js, no download needed."}
