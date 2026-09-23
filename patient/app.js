@@ -15,7 +15,12 @@ $('openLink').addEventListener('click', () => {
   try {
     const url = new URL($('linkInput').value.trim());
     if (url.origin !== location.origin || !url.pathname.endsWith('/patient/') || !url.hash) throw new Error();
-    location.href = url.href;
+    const fragment = new URLSearchParams(url.hash.slice(1));
+    const patientId = fragment.get('patientId');
+    const token = fragment.get('token');
+    if (!/^[A-F0-9]{16}$/.test(patientId || '') || !/^[A-Za-z0-9_-]{32,64}$/.test(token || '')) throw new Error();
+    localStorage.setItem('asha_patient_link', JSON.stringify({ patientId, token }));
+    location.reload();
   } catch { alert('Use the full patient link shared by your caregiver.'); }
 });
 

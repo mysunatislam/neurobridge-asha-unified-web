@@ -60,8 +60,9 @@ export function caregiverPatients() {
   } catch { return []; }
 }
 export function saveCaregiverPatient(patient) {
-  const list = caregiverPatients().filter((entry) => entry.patientId !== patient.patientId);
-  list.push(patient);
+  const prior = caregiverPatients();
+  const list = prior.filter((entry) => entry.patientId !== patient.patientId);
+  list.push({ ...prior.find((entry) => entry.patientId === patient.patientId), ...patient });
   localStorage.setItem('asha_caregiver_patients', JSON.stringify(list));
 }
 export function forgetCaregiverPatient(patientId) {
