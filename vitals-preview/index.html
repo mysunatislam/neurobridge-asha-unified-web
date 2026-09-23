@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NeuroBridge · PulseSight vitals preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script type="module" crossorigin src="./assets/index-8Gtx83OE.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-Dq9_BR0G.css">
+  </head>
+  <body class="bg-[#0b1120] text-slate-100 antialiased font-['Inter',sans-serif] selection:bg-teal-500 selection:text-white min-h-screen">
+    <div id="root"></div>
+    <script>
+      // Open the existing camera vitals view rather than the research session home.
+      const goVitals = setInterval(() => {
+        const item = [...document.querySelectorAll('button')]
+          .find(button => button.textContent.includes('PulseSight & AAC'));
+        if (item) { item.click(); clearInterval(goVitals); }
+      }, 150);
+      setTimeout(() => clearInterval(goVitals), 8000);
+    </script>
+    <script src="../asha-overlay.js" data-asha-context="PulseSight vitals research preview" defer></script>
+  </body>
+</html>

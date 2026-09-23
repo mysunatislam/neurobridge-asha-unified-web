@@ -1,17 +1,61 @@
-<!DOCTYPE html>
-<html lang="en" class="dark">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>NeuroBridge SenseAssist | Seven-Stage Assistive Workflow Prototype</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="/neurobridge-asha-unified-web/senseassist/assets/index-8Gtx83OE.js"></script>
-    <link rel="stylesheet" crossorigin href="/neurobridge-asha-unified-web/senseassist/assets/index-Dq9_BR0G.css">
-  </head>
-  <body class="bg-[#0b1120] text-slate-100 antialiased font-['Inter',sans-serif] selection:bg-teal-500 selection:text-white min-h-screen">
-    <div id="root"></div>
-  </body>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1427">
+  <title>SenseAssist · Speech practice and understanding</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="../">← All modules</a>
+    <span class="brand">NeuroBridge <strong>SenseAssist</strong></span>
+    <span class="badge">Recovery speech · demo</span>
+  </header>
+
+  <main class="shell">
+    <section class="intro">
+      <p class="eyebrow">A calmer space for speech recovery</p>
+      <h1>Practice speaking. Help others understand.</h1>
+      <p>Two simple tools, with Asha nearby to guide you. Nothing is a clinical diagnosis or a guaranteed transcription.</p>
+    </section>
+
+    <nav class="tabs" role="tablist" aria-label="Speech tools">
+      <button id="practiceTab" class="tab active" type="button" role="tab" aria-controls="practicePanel" aria-selected="true">1 · Speech practice</button>
+      <button id="understandTab" class="tab" type="button" role="tab" aria-controls="understandPanel" aria-selected="false">2 · Understand my words</button>
+    </nav>
+
+    <section id="practicePanel" class="panel" role="tabpanel" aria-labelledby="practiceTab">
+      <div class="panel-head"><span class="step">01</span><div><h2 id="practiceHeading">Speech practice</h2><p>Choose a phrase, hear it, then try it at your pace.</p></div></div>
+      <label for="targetPhrase">Phrase to practice</label>
+      <div class="input-row"><input id="targetPhrase" maxlength="180" value="I would like some water" autocomplete="off"><button id="hearPhrase" class="secondary" type="button">▶ Hear phrase</button></div>
+      <div class="suggestions" aria-label="Suggested phrases">
+        <button type="button" data-phrase="I would like some water">Water</button>
+        <button type="button" data-phrase="Please call my caregiver">Caregiver</button>
+        <button type="button" data-phrase="I need to rest">Rest</button>
+      </div>
+      <div class="action-row"><button id="practiceMic" class="primary" type="button">🎙 Start speaking</button><span id="practiceStatus" class="status" role="status">Ready when you are.</span></div>
+      <div class="result"><span class="result-label">What the browser heard</span><p id="practiceHeard">Your words will appear here.</p></div>
+      <div id="practiceFeedback" class="feedback" aria-live="polite">Try one phrase at a time. Browser recognition can mishear atypical speech.</div>
+    </section>
+
+    <section id="understandPanel" class="panel" role="tabpanel" aria-labelledby="understandTab" hidden>
+      <div class="panel-head"><span class="step">02</span><div><h2 id="understandHeading">Understand my words</h2><p>Review what the browser heard. Maira can suggest the most likely intended wording.</p></div></div>
+      <div class="example"><span>Example</span><strong>“wed wabbit wghreen”</strong><span>→ possible meaning: “red rabbit green”</span></div>
+      <label for="heardText">What was heard</label>
+      <textarea id="heardText" rows="3" maxlength="200" placeholder="Speak with the microphone or type the unclear words, for example: wed wabbit wghreen"></textarea>
+      <div class="action-row"><button id="understandMic" class="secondary" type="button">🎙 Capture words</button><span id="understandStatus" class="status" role="status">You can edit the transcript before sending.</span></div>
+      <label for="contextText">Optional context</label>
+      <input id="contextText" maxlength="120" placeholder="e.g. practising colours and animals" autocomplete="off">
+      <label class="consent"><input id="cloudConsent" type="checkbox"><span>Send only the reviewed text above to Maira for a suggestion. No microphone audio is sent by this app.</span></label>
+      <button id="interpret" class="primary wide" type="button">Suggest possible meaning</button>
+      <div id="interpretResult" class="interpret-result" hidden aria-live="polite"><span class="result-label">Possible meaning — please confirm</span><p id="candidate"></p><p class="caution">This is an AI suggestion, not a fact. Ask the person to confirm before acting on it.</p><button id="speakCandidate" class="secondary" type="button">▶ Speak suggestion</button></div>
+    </section>
+
+    <aside class="notice">Speech recognition availability varies by browser and may use the browser vendor's service. Use typed text if the microphone is unavailable. Do not use this demo alone for emergency or medical decisions.</aside>
+  </main>
+  <script src="./app.js" defer></script>
+  <script src="../asha-overlay.js" data-asha-context="SenseAssist speech practice and unclear speech interpretation" defer></script>
+</body>
 </html>
