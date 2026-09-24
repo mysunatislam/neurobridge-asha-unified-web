@@ -368,6 +368,11 @@ function analyze(lm) {
   } else {
     thClose = 0.15; thOpen = 0.21;
   }
+  // Eyes-shut detector: 2 s continuous closure → Emergency gesture.
+  // Independent of the blink state machine so a held-shut eye always counts.
+  if (eyeCalibrated && earAvg < thClose) S.shutHold = (S.shutHold || 0) + dt; else S.shutHold = 0;
+  if (S.shutHold >= 2.0 && !S.shutFired) { S.shutFired = true; faceDispatch("eyesShut"); }
+  if (earAvg > thOpen) S.shutFired = false;
   S.eyeTh = { close: thClose, open: thOpen };
   // Water-command re-arm: after firing, require 2.5 s of continuous open
   // eyes before a new triple-hold can trigger — breaks repeat-fire loops
@@ -419,6 +424,10 @@ function analyze(lm) {
   S.smile = { intensity: sm, sym: sym, l: smileSides.left, r: smileSides.right,
     valid: smileSides.valid, hold: sm > 0.45 ? S.smile.hold + dt : 0,
     symLowHold: asymmetryNow ? (S.smile.symLowHold || 0) + dt : 0 };
+  // Smile-hold detector: sustained smile (time-based) → Yes gesture.
+  S.smileHoldSec = sm > S.smileThr ? (S.smileHoldSec || 0) + dt : 0;
+  if (S.smileHoldSec >= 1.5 && !S.smileHoldFired) { S.smileHoldFired = true; faceDispatch("smileHold"); }
+  if (sm <= S.smileThr) S.smileHoldFired = false;
 
   /* Fixed neutral-relative geometry; untrained CNN outputs do not affect bars. */
   var au1 = S.aus.AU1 / 100, au4 = S.aus.AU4 / 100;
@@ -464,14 +473,14 @@ function analyze(lm) {
     while (turns.length && t - turns[0] > 6) turns.shift();
     if (turns.length >= 3) {
       S.headTurns.left = []; S.headTurns.right = [];
-      firePatientCommand(side === "left" ? "food" : "toilet");
+      faceDispatch(side === "left" ? "headL" : "headR");
     }
   }
   /* patient command: nod while smiling → okay/thank-you (rising edge) */
   var nodNow = S.head.nod !== "—";
   if (nodNow && !S.lastNod) {
     S.lastNodT = t;
-    if (S.smile.intensity > S.smileThr) { S.okayFiredNod = t; firePatientCommand("okay"); }
+    if (S.smile.intensity > S.smileThr) { S.okayFiredNod = t; faceDispatch("nodSmile"); }
   }
   S.lastNod = nodNow;
 
@@ -637,7 +646,7 @@ function onBlinkEvent(type, dur) {
     if (seq.length === 3 && seq.every(function (e) { return e.centered; })) {
       S.intentSeq = [];
       S.waterArmed = false; S.openRun = 0;
-      firePatientCommand("water");
+      faceDispatch("blink3");
     }
   }
 }
@@ -1048,16 +1057,21 @@ function updateHud() {
   // head
   $("vYaw").textContent = num(S.head.yaw, 1) + "°"; $("vPitch").textContent = num(S.head.pitch, 1) + "°"; $("vRoll").textContent = num(S.head.roll, 1) + "°";
   $("vPose").textContent = S.head.pose; $("vNod").textContent = S.head.nod;
-  // command progress
+  // command progress (guarded: rows re-render when detectors are remapped)
   var nowT = S.t || 0;
   function recent(arr, win) { return arr.filter(function (x) { return nowT - (x.t !== undefined ? x.t : x) <= win; }); }
   var iw = recent(S.intentSeq, 8);
   var lastCentered = !iw.length || iw[iw.length - 1].centered;
-  $("progWater").textContent = !S.waterArmed ? "locked — keep eyes open to re-arm"
-    : (iw.length + "/3 intentional blinks" + (iw.length && !lastCentered ? " — look at camera" : ""));
-  $("progFood").textContent = recent(S.headTurns.left, 6).length + "/3 head-left turns";
-  $("progToilet").textContent = recent(S.headTurns.right, 6).length + "/3 head-right turns";
-  $("progOkay").textContent = "smile " + Math.round(S.smile.intensity * 100) + "%" + (S.head.nod !== "—" ? " + nod ✓" : "");
+  setText("progWater", !S.waterArmed ? "locked — keep eyes open to re-arm"
+    : (iw.length + "/3 intentional blinks" + (iw.length && !lastCentered ? " — look at camera" : "")));
+  setText("progFood", recent(S.headTurns.left, 6).length + "/3 head-left turns");
+  setText("progToilet", recent(S.headTurns.right, 6).length + "/3 head-right turns");
+  setText("progOkay", "smile " + Math.round(S.smile.intensity * 100) + "%" + (S.head.nod !== "—" ? " + nod ✓" : ""));
+  if (S.frame % 30 === 0) refreshFaceEval();
+}
+function setText(id, txt) {
+  var el = $(id);
+  if (el) el.textContent = txt;
 }
 function setBar(bid, vid, v) {
   $(bid).style.width = (v || 0) + "%";
@@ -1073,20 +1087,301 @@ function detectNod(hist) {
   return turns >= 3;
 }
 
-/* ---------------- patient commands (fixed intentional mapping) ---------------- */
-var PATIENT_COMMANDS = {
-  water: "I need water",
-  food: "I need food",
-  toilet: "I need to go to toilet",
-  okay: "I am okay, thank you",
+/* ---------------- FaceSpeak: trainable gesture→phrase studio ----------------
+   Gesture rows (Rest protected + user rows) bind a live detector to a phrase.
+   Recording stores steady feature snapshots; Train builds per-gesture
+   prototypes against shared Rest; at runtime a detector event only speaks
+   when the live features match the trained active prototype (margin gate).
+   Untrained gestures speak directly (backward compatible). */
+var FACE_DETECTORS = ["rest", "blink3", "headL", "headR", "nodSmile", "smileHold", "eyesShut"];
+var FACE_DETECTOR_LABELS = {
+  rest: "Rest (neutral)", blink3: "3× deliberate blink",
+  headL: "3× head left + return", headR: "3× head right + return",
+  nodSmile: "Nod + smile", smileHold: "Smile hold 1.5s", eyesShut: "Eyes shut hold 2s",
 };
-function firePatientCommand(key) {
+var FACE_FALLBACK = {
+  blink3: "I need water", headL: "I need food", headR: "I need to go to toilet",
+  nodSmile: "I am okay, thank you", smileHold: "Yes.", eyesShut: "Emergency, please come immediately",
+};
+var FACE_GUIDE_HINTS = {
+  rest: "relax: neutral face, look at camera",
+  blink3: "blink deliberately 3 times, then rest",
+  headL: "turn head left + back, 3 times",
+  headR: "turn head right + back, 3 times",
+  nodSmile: "nod while smiling",
+  smileHold: "hold a big smile",
+  eyesShut: "shut eyes firmly, then open",
+};
+var FACE_STORE_KEY = "neuroface_facespeak_v1";
+var FACE_SCALES = { ear: 0.5, smile: 1, dev: 0.08, yaw: 45, mar: 0.8 };
+
+function defaultFaceGestures() {
+  return [
+    { id: "rest", name: "Rest", detector: "rest", phrase: "", protected: true, samples: [], trained: null },
+    { id: "water", name: "Water", detector: "blink3", phrase: "I need water", samples: [], trained: null },
+    { id: "food", name: "Food", detector: "headL", phrase: "I need food", samples: [], trained: null },
+    { id: "toilet", name: "Toilet", detector: "headR", phrase: "I need to go to toilet", samples: [], trained: null },
+    { id: "okay", name: "Okay", detector: "nodSmile", phrase: "I am okay, thank you", samples: [], trained: null },
+    { id: "yes", name: "Yes", detector: "smileHold", phrase: "Yes.", samples: [], trained: null },
+    { id: "emergency", name: "Emergency", detector: "eyesShut", phrase: "Emergency, please come immediately", samples: [], trained: null },
+  ];
+}
+function findFaceGesture(gid) {
+  for (var i = 0; i < S.faceGestures.length; i++) {
+    if (S.faceGestures[i].id === gid) return S.faceGestures[i];
+  }
+  return null;
+}
+function faceGestureFor(detector) {
+  for (var i = 0; i < S.faceGestures.length; i++) {
+    if (S.faceGestures[i].detector === detector) return S.faceGestures[i];
+  }
+  return null;
+}
+function persistFaceSpeak() {
+  try {
+    localStorage.setItem(FACE_STORE_KEY, JSON.stringify({
+      gestures: S.faceGestures.map(function (g) {
+        return { id: g.id, name: g.name, detector: g.detector, phrase: g.phrase, samples: (g.samples || []).slice(-6), trained: g.trained || null };
+      }),
+      rest: (S.faceRest || []).slice(-12),
+    }));
+  } catch (e) {}
+}
+function loadFaceSpeak() {
+  S.faceGestures = defaultFaceGestures();
+  S.faceRest = [];
+  S.faceStats = {};
+  S.guide = null;
+  try {
+    var raw = localStorage.getItem(FACE_STORE_KEY);
+    if (!raw) return;
+    var saved = JSON.parse(raw);
+    if (saved && Array.isArray(saved.gestures)) {
+      var byId = {};
+      S.faceGestures.forEach(function (g) { byId[g.id] = g; });
+      saved.gestures.forEach(function (sg) {
+        if (!sg || typeof sg.id !== "string") return;
+        var g = byId[sg.id];
+        if (g) {
+          if (g.id !== "rest") {
+            if (typeof sg.name === "string" && sg.name) g.name = sg.name.slice(0, 40);
+            if (FACE_DETECTORS.indexOf(sg.detector) >= 0) g.detector = sg.detector;
+            if (typeof sg.phrase === "string") g.phrase = sg.phrase.slice(0, 120);
+          }
+          if (Array.isArray(sg.samples)) g.samples = sg.samples.filter(Array.isArray).slice(-6);
+          g.trained = sg.trained || null;
+        } else if (S.faceGestures.length < 12 && FACE_DETECTORS.indexOf(sg.detector) >= 0) {
+          S.faceGestures.push({
+            id: sg.id.slice(0, 24), name: String(sg.name || "Custom").slice(0, 40),
+            detector: sg.detector, phrase: String(sg.phrase || "").slice(0, 120),
+            samples: Array.isArray(sg.samples) ? sg.samples.filter(Array.isArray).slice(-6) : [], trained: sg.trained || null,
+          });
+        }
+      });
+    }
+    if (saved && Array.isArray(saved.rest)) S.faceRest = saved.rest.filter(Array.isArray).slice(-12);
+  } catch (e) {}
+}
+function faceSnapshotNorm() {
+  return [
+    ((S.earL + S.earR) / 2) / FACE_SCALES.ear,
+    S.smile.intensity / FACE_SCALES.smile,
+    Math.abs(S.lip.dev || 0) / FACE_SCALES.dev,
+    Math.abs(S.head.yaw) / FACE_SCALES.yaw,
+    S.mar / FACE_SCALES.mar,
+  ];
+}
+function faceVecMean(vecs) {
+  var n = Math.max(1, vecs.length), out = [0, 0, 0, 0, 0], i, j;
+  for (i = 0; i < vecs.length; i++) {
+    for (j = 0; j < 5; j++) out[j] += (Number(vecs[i][j]) || 0);
+  }
+  for (j = 0; j < 5; j++) out[j] /= n;
+  return out;
+}
+function faceDist(a, b) {
+  var s = 0;
+  for (var j = 0; j < 5; j++) { var d = a[j] - b[j]; s += d * d; }
+  return Math.sqrt(s);
+}
+function faceMatchMargin(detector) {
+  var g = faceGestureFor(detector);
+  if (!g || !g.trained || !g.trained.active || !g.trained.rest) return null;
+  var live = faceSnapshotNorm();
+  return faceDist(live, g.trained.rest) - faceDist(live, g.trained.active);
+}
+function faceStat(gid) {
+  if (!S.faceStats[gid]) S.faceStats[gid] = { fires: 0, lastMargin: null };
+  return S.faceStats[gid];
+}
+function faceDispatch(detector) {
   if (!$("tglComm").checked) return;
+  var g = faceGestureFor(detector);
+  var phrase = g ? g.phrase : (FACE_FALLBACK[detector] || "");
+  var gid = g ? g.id : ("face:" + detector);
+  if (!phrase) { throttledLog("FaceSpeak: no phrase set for " + detector, "fs-nophrase-" + detector, 15000); return; }
   var now = performance.now() / 1000;
-  if (now - (S.cmdCooldowns[key] || -10) < 5) return;
-  S.cmdCooldowns[key] = now;
-  showCommand(PATIENT_COMMANDS[key], key);
-  addLog("Command sent: " + PATIENT_COMMANDS[key], "info");
+  if (now - (S.cmdCooldowns[gid] || -10) < 5) return;
+  var margin = faceMatchMargin(detector);
+  var st = faceStat(gid);
+  st.lastMargin = margin;
+  if (g && g.trained && !(margin !== null && margin > 0.03)) {
+    throttledLog("FaceSpeak: '" + g.name + "' blocked by personal model (margin " + (margin === null ? "n/a" : margin.toFixed(2)) + ")", "fs-block-" + gid, 15000);
+    refreshFaceEval();
+    return;
+  }
+  S.cmdCooldowns[gid] = now;
+  st.fires++;
+  setFaceSpeakStatus((g ? g.name : detector) + " → " + phrase);
+  showCommand(phrase, gid);
+  addLog("FaceSpeak [" + (g ? g.name : detector) + "]: " + phrase, "info");
+  refreshFaceEval();
+}
+function setFaceSpeakStatus(text) {
+  var el = $("faceSpeakStatus");
+  if (el) el.textContent = text;
+}
+function faceRecord(gid, isRest) {
+  if (!S.running || S.demo || !S.facePresent) {
+    addLog("FaceSpeak record needs the live camera with your face tracked.", "info");
+    return;
+  }
+  var snap = faceSnapshotNorm();
+  if (isRest) {
+    S.faceRest.push(snap);
+    if (S.faceRest.length > 12) S.faceRest.shift();
+  } else {
+    var g = findFaceGesture(gid);
+    if (!g || g.id === "rest") return;
+    g.samples = g.samples || [];
+    g.samples.push(snap);
+    if (g.samples.length > 6) g.samples.shift();
+    g.trained = null;
+  }
+  persistFaceSpeak(); renderFaceTable(); refreshFaceEval();
+}
+function faceTrainAll() {
+  if ((S.faceRest || []).length < 2) {
+    addLog("FaceSpeak: record ≥2 Rest samples first (Rest defines “no intent”).", "info");
+    return;
+  }
+  var restProto = faceVecMean(S.faceRest);
+  var trained = 0;
+  S.faceGestures.forEach(function (g) {
+    if (g.id === "rest") return;
+    if ((g.samples || []).length >= 2) {
+      g.trained = { active: faceVecMean(g.samples), rest: restProto };
+      trained++;
+    }
+  });
+  persistFaceSpeak(); renderFaceTable(); refreshFaceEval();
+  addLog("FaceSpeak: trained " + trained + " gesture(s) against " + S.faceRest.length + " rest samples.", "info");
+}
+function stopFaceGuide(msg) {
+  if (S.guide && S.guide.timer) clearInterval(S.guide.timer);
+  S.guide = null;
+  var btn = $("btnFaceGuide");
+  if (btn) btn.textContent = "▶ Start guided calibration";
+  renderFaceTable();
+  if (msg) addLog(msg, "info");
+}
+function faceGuided() {
+  if (S.guide) { stopFaceGuide("Guided calibration stopped."); return; }
+  if (!S.running || S.demo || !S.facePresent) {
+    addLog("Guided calibration needs the live camera with your face tracked.", "info");
+    return;
+  }
+  var queue = ["rest"].concat(S.faceGestures.filter(function (g) { return g.id !== "rest"; }).map(function (g) { return g.id; }));
+  S.guide = { queue: queue, idx: 0, count: 0, timer: null };
+  var btn = $("btnFaceGuide");
+  if (btn) btn.textContent = "⏹ Stop guided calibration";
+  addLog("Guided calibration: relax neutral face for Rest…", "info");
+  renderFaceTable();
+  S.guide.timer = setInterval(faceGuideTick, 1200);
+}
+function faceGuideTick() {
+  var G = S.guide;
+  if (!G) return;
+  if (!S.running || S.demo || !S.facePresent) return; // wait for tracking; patient-friendly
+  var gid = G.queue[G.idx];
+  var hint = gid === "rest" ? "relax neutral face" : FACE_GUIDE_HINTS[(findFaceGesture(gid) || {}).detector] || "perform the movement";
+  if (gid === "rest") {
+    S.faceRest.push(faceSnapshotNorm());
+    if (S.faceRest.length > 12) S.faceRest.shift();
+  } else {
+    var g = findFaceGesture(gid);
+    if (!g) { G.idx++; G.count = 0; return; }
+    g.samples = g.samples || [];
+    g.samples.push(faceSnapshotNorm());
+    if (g.samples.length > 6) g.samples.shift();
+    g.trained = null;
+  }
+  G.count++;
+  persistFaceSpeak(); renderFaceTable();
+  if (G.count >= 3) {
+    G.idx++; G.count = 0;
+    if (G.idx >= G.queue.length) {
+      stopFaceGuide(null);
+      addLog("Guided calibration done — training…", "info");
+      faceTrainAll();
+      return;
+    }
+    var nextId = G.queue[G.idx];
+    var ng = nextId === "rest" ? null : findFaceGesture(nextId);
+    addLog("Guided calibration: " + (nextId === "rest" ? "relax neutral face" : ((ng ? ng.name : nextId) + " — " + (FACE_GUIDE_HINTS[(ng || {}).detector] || "perform it"))) + "…", "info");
+  } else if (G.count === 1) {
+    addLog("Recording " + (gid === "rest" ? "Rest" : ((findFaceGesture(gid) || {}).name || gid)) + ": " + hint + "…", "info");
+  }
+}
+function detectorOptions(selected) {
+  return FACE_DETECTORS.map(function (d) {
+    return '<option value="' + d + '"' + (d === selected ? " selected" : "") + ">" + FACE_DETECTOR_LABELS[d] + "</option>";
+  }).join("");
+}
+function renderFaceTable() {
+  var box = $("faceGestureTable");
+  if (!box || !S.faceGestures) return;
+  var guideId = S.guide ? S.guide.queue[S.guide.idx] : null;
+  var progFor = { blink3: "progWater", headL: "progFood", headR: "progToilet", nodSmile: "progOkay" };
+  box.innerHTML = S.faceGestures.map(function (g) {
+    var isRest = g.id === "rest";
+    var progId = progFor[g.detector];
+    var prog = progId ? '<i id="' + progId + '">…</i>' : "<i>" + (g.samples || []).length + "/3</i>";
+    return '<div class="fg-row' + (guideId === g.id ? " guiding" : "") + '" data-gid="' + esc(g.id) + '">'
+      + '<label>Gesture<input data-f="name" value="' + esc(g.name) + '"' + (isRest ? " disabled" : "") + "></label>"
+      + '<label>Detector<select data-f="detector"' + (isRest ? " disabled" : "") + ">" + detectorOptions(g.detector) + "</select></label>"
+      + '<label>Says<input data-f="phrase" value="' + esc(g.phrase) + '" placeholder="—"' + (isRest ? " disabled" : "") + "></label>"
+      + '<span class="fg-samples">' + prog + "</span>"
+      + '<button class="btn small ghost" data-act="record">Record</button>'
+      + (isRest ? '<span class="badge-protected">protected</span>' : '<button class="btn small ghost" data-act="del" aria-label="Delete">×</button>')
+      + "</div>";
+  }).join("");
+}
+function refreshFaceEval() {
+  var box = $("faceEvalTable");
+  if (!box || !S.faceGestures) return;
+  box.innerHTML = S.faceGestures.map(function (g) {
+    var st = faceStat(g.id);
+    var margin = st.lastMargin === null || st.lastMargin === undefined ? "—" : st.lastMargin.toFixed(2);
+    return '<div class="fg-row eval"><span><b>' + esc(g.name) + "</b><small>" + esc(FACE_DETECTOR_LABELS[g.detector] || g.detector) + "</small></span>"
+      + "<span>samples " + (g.id === "rest" ? (S.faceRest || []).length : (g.samples || []).length) + "</span>"
+      + "<span>" + (g.id === "rest" ? "reference" : (g.trained ? "trained ✓" : "untrained")) + "</span>"
+      + "<span>fires " + st.fires + "</span>"
+      + "<span>margin " + margin + "</span></div>";
+  }).join("");
+}
+function showFaceTab(name) {
+  ["calibrate", "speak", "evaluate", "log"].forEach(function (t) {
+    var pane = $("faceTab-" + t);
+    if (pane) pane.hidden = t !== name;
+  });
+  var tabs = document.querySelectorAll ? document.querySelectorAll(".face-tab") : [];
+  for (var i = 0; i < tabs.length; i++) {
+    var active = tabs[i].getAttribute("data-ftab") === name;
+    if (active) tabs[i].classList.add("active");
+    else tabs[i].classList.remove("active");
+  }
 }
 function showCommand(cmd, kind) {
   $("cmdDisplay").textContent = cmd;
@@ -1103,7 +1398,7 @@ function commTick(t) {
   // Nod-then-smile order: nod fired first, smile arrives within 2.5 s.
   if (S.lastNodT > 0 && t - S.lastNodT < 2.5 && S.smile.intensity > S.smileThr && S.okayFiredNod < S.lastNodT) {
     S.okayFiredNod = S.lastNodT;
-    firePatientCommand("okay");
+    faceDispatch("nodSmile");
   }
 }
 
@@ -1449,11 +1744,65 @@ $("btnMairaVision").onclick = function () {
 window.addEventListener("resize", sizeCanvas);
 window.addEventListener("pagehide", stopCamera);
 
+function wireFaceStudio() {
+  var tabs = document.querySelectorAll(".face-tab");
+  for (var i = 0; i < tabs.length; i++) {
+    (function (btn) {
+      btn.addEventListener("click", function () { showFaceTab(btn.getAttribute("data-ftab")); });
+    })(tabs[i]);
+  }
+  var table = $("faceGestureTable");
+  if (table) {
+    table.addEventListener("change", function (ev) {
+      var row = ev.target && ev.target.closest ? ev.target.closest("[data-gid]") : null;
+      if (!row || !ev.target.getAttribute("data-f")) return;
+      var g = findFaceGesture(row.getAttribute("data-gid"));
+      if (!g || g.id === "rest") return;
+      var field = ev.target.getAttribute("data-f");
+      if (field === "name") g.name = String(ev.target.value || "Custom").slice(0, 40);
+      else if (field === "phrase") g.phrase = String(ev.target.value || "").slice(0, 120);
+      else if (field === "detector" && FACE_DETECTORS.indexOf(ev.target.value) >= 0) {
+        if (g.detector !== ev.target.value) { g.detector = ev.target.value; g.samples = []; g.trained = null; }
+      }
+      persistFaceSpeak(); renderFaceTable(); refreshFaceEval();
+    });
+    table.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest("[data-act]") : null;
+      if (!btn) return;
+      var row = btn.closest("[data-gid]");
+      if (!row) return;
+      var gid = row.getAttribute("data-gid");
+      if (btn.getAttribute("data-act") === "record") {
+        faceRecord(gid, gid === "rest");
+      } else if (gid !== "rest") {
+        S.faceGestures = S.faceGestures.filter(function (g) { return g.id !== gid; });
+        persistFaceSpeak(); renderFaceTable(); refreshFaceEval();
+      }
+    });
+  }
+  var add = $("btnFaceAdd");
+  if (add) add.addEventListener("click", function () {
+    if (S.faceGestures.length >= 12) { addLog("FaceSpeak: gesture table is full (12).", "info"); return; }
+    var n = 1;
+    while (findFaceGesture("custom" + n)) n++;
+    S.faceGestures.push({ id: "custom" + n, name: "Custom " + n, detector: "smileHold", phrase: "", samples: [], trained: null });
+    persistFaceSpeak(); renderFaceTable(); refreshFaceEval();
+  });
+  var guide = $("btnFaceGuide");
+  if (guide) guide.addEventListener("click", faceGuided);
+  var train = $("btnFaceTrain");
+  if (train) train.addEventListener("click", faceTrainAll);
+}
+
 /* ---------------- boot ---------------- */
 refreshTwin();
 initModelStatus();
 listCameras();
+loadFaceSpeak();
 updateHud();
 mairaBoot();
+renderFaceTable();
+showFaceTab("calibrate");
+wireFaceStudio();
 addLog("NeuroFace Sense ready. Start camera or Demo Mode. Research demo — not a medical device.", "info");
 })();

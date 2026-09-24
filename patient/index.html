@@ -2,14 +2,14 @@
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#081224"><title>Asha · Patient device</title><link rel="stylesheet" href="../asha-flow.css"></head>
 <body>
-  <header class="topbar"><a class="brand" href="../">NeuroBridge <span>Asha</span></a><nav><a href="../modules/">Modules</a><button class="icon-btn" type="button" data-theme-toggle aria-label="Toggle theme">☀ Light</button></nav></header>
+  <header class="topbar"><a class="brand" href="../">NeuroBridge <span>Asha</span></a><nav><a href="../pair/">Pair device</a><a href="../caregiver/">Caregiver</a><a href="../modules/">Modules</a><button class="icon-btn" type="button" data-theme-toggle aria-label="Toggle theme">☀ Light</button></nav></header>
   <main class="shell">
     <section id="missingLink" class="card" hidden><p class="eyebrow">Patient device</p><h1>Ask your caregiver for the patient link.</h1><p>It contains a private access token and the anonymous patient ID. Open it on this device, or paste the full link below.</p><div class="actions"><input id="linkInput" type="url" placeholder="Paste full patient link" aria-label="Patient link" style="flex:1;min-width:240px"><button class="btn primary" id="openLink" type="button">Open link</button></div><p class="notice warn small">Do not use a real patient name or medical record in this demo.</p></section>
     <div id="patientApp" hidden>
       <div class="dashboard-head"><div><p class="eyebrow">Asha patient device · <span id="patientId" class="code"></span></p><h1>Asha is here with you.</h1><p id="patientIntro">Loading the caregiver's setup…</p></div><button class="btn" id="speakIntro" type="button">▶ Hear Asha</button></div>
       <div class="patient-main">
         <div>
-          <section class="card route-card"><span class="tag">Chosen from caregiver assessment</span><h2 id="modeName" style="margin-top:12px">Preparing communication mode</h2><p id="modeReason"></p><div class="actions"><a class="btn primary" id="modeLink" target="_blank" rel="noopener" href="../modules/">Open recommended dashboard</a><button class="btn" id="refreshSetup" type="button">Refresh assessment</button></div><p class="small muted">The caregiver controls these settings. Opening a separate dashboard may pause monitoring on some phones.</p></section>
+          <section class="card route-card"><span class="tag">Chosen from caregiver assessment</span><h2 id="modeName" style="margin-top:12px">Preparing communication mode</h2><p id="modeReason"></p><div class="actions"><a class="btn primary" id="modeLink" target="_blank" rel="noopener" href="../modules/">Open recommended dashboard</a><button class="btn" id="refreshSetup" type="button">Refresh assessment</button></div><div id="secondaryModes" class="actions" style="margin-top:11px"></div><p class="small muted">The caregiver controls these settings. Opening a separate dashboard may pause monitoring on some phones.</p></section>
           <section class="card" style="margin-top:16px"><span class="tag">VitalSense · continuous while this page stays active</span><h2 style="margin-top:12px">Camera signal monitor</h2><p>Uses the supplied VitalSense camera/DSP prototype. The camera remains on this device; only a brief quality-gated status or possible-discomfort event is sent to your paired caregiver dashboard.</p><div class="actions"><button class="btn primary" id="startMonitor" type="button">Start VitalSense</button><span id="monitorStatus" role="status" class="small muted">Camera off.</span></div><p class="small muted">After opening, tap “Enable camera” inside the monitor and allow camera permission. Stay in good light and hold still for calibration. Browser backgrounding may stop the feed.</p><iframe id="monitorFrame" class="monitor-frame" title="VitalSense camera signal monitor" allow="camera" hidden></iframe></section>
           <section id="discomfortPrompt" class="prompt" hidden aria-live="assertive"><h2>Asha noticed a possible change.</h2><p id="discomfortText">A caregiver-dashboard alert was sent. This is not a diagnosis or a phone call. Do you want more help?</p><div class="actions"><button class="btn primary" id="requestHelp" type="button">Ask caregiver for help</button><button class="btn" id="dismissPrompt" type="button">I'm okay for now</button></div></section>
         </div>
@@ -21,6 +21,7 @@
     </div>
   </main>
   <script type="module" src="./app.js"></script>
+  <script src="../asha-nav.js" defer></script>
   <script src="../asha-overlay.js" data-asha-context="Patient companion and VitalSense monitoring" defer></script>
 </body>
 </html>

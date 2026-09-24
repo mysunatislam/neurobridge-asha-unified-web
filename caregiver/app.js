@@ -14,6 +14,7 @@ let audioContext = null;
 wireTheme();
 const incoming = credentialsFromLink('caregiver');
 if (incoming) saveCaregiverPatient({ patientId: incoming.patientId, caregiverToken: incoming.token, label: 'Linked patient' });
+document.getElementById('nextPair').hidden = !caregiverPatients().length;
 
 function assessmentFromForm() {
   const fields = ['leftHand', 'rightHand', 'wrist', 'fingers', 'eyes', 'lips', 'head', 'speech'];
@@ -72,7 +73,7 @@ $('assessmentForm').addEventListener('submit', async (event) => {
       const profile = await demoApi({ method: 'POST', token: editing.caregiverToken,
         body: { action: 'update', patientId: editing.patientId, label, assessment, voice } });
       saveCaregiverPatient({ ...editing, label: profile.label });
-      status(`${profile.patientId}: setup saved. Asha recommends ${profile.route.label}.`);
+      status(`${profile.patientId}: setup saved. Asha recommends ${profile.route.label}${profile.route.suggestions?.length ? ' and also SenseAssist' : ''}.`);
     } else {
       const profile = await demoApi({ method: 'POST', body: { action: 'create', label, assessment, voice } });
       const entry = { patientId: profile.patientId, caregiverToken: profile.caregiverToken,
@@ -88,8 +89,9 @@ $('assessmentForm').addEventListener('submit', async (event) => {
       linkText(newLinks.patient, 'patientLinkText');
       linkText(newLinks.caregiver, 'caregiverLinkText');
       $('sharePanel').hidden = false;
-      status(`Setup created. Asha recommends ${profile.route.label}. Open the patient link on device two.`);
+      status(`Setup created. Asha recommends ${profile.route.label}${profile.route.suggestions?.length ? ' and also SenseAssist' : ''}. Tap Next to pair device two.`);
     }
+    $('nextPair').hidden = false;
     await refresh();
   } catch (error) { status(error.message, true); }
   finally { button.disabled = false; }
@@ -153,6 +155,7 @@ async function refresh() {
       if (record.error) card.append(text('p', record.error, 'small muted'));
       else {
         card.append(text('p', `Asha recommends ${record.profile.route.label}. ${record.profile.route.reason}`));
+        if (record.profile.route.suggestions?.length) card.append(text('p', 'Also suggested: SenseAssist for available speech.'));
         card.append(text('p', record.status
           ? `Last signal: ${record.status.signal} · ${record.status.bpm ?? '—'} BPM · confidence ${record.status.confidence ?? '—'}% · ${formatWhen(record.status.at)}`
           : 'No live signal yet. Open the patient link and start monitoring.', 'small muted'));

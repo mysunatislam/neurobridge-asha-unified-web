@@ -2,7 +2,7 @@
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#081224"><title>Asha · Caregiver assessment and live view</title><link rel="stylesheet" href="../asha-flow.css"></head>
 <body>
-  <header class="topbar"><a class="brand" href="../">NeuroBridge <span>Asha</span></a><nav><a href="../modules/">Modules</a><a href="../patient/">Patient</a><button class="icon-btn" type="button" data-theme-toggle aria-label="Toggle theme">☀ Light</button></nav></header>
+  <header class="topbar"><a class="brand" href="../">NeuroBridge <span>Asha</span></a><nav><a href="../pair/">Next: pair devices →</a><a href="../modules/">Modules</a><a href="../patient/">Patient</a><button class="icon-btn" type="button" data-theme-toggle aria-label="Toggle theme">☀ Light</button></nav></header>
   <main class="shell">
     <div class="step-head"><p class="eyebrow">Step 2 · caregiver-controlled setup</p><h1>Patient assessment</h1><p>Report movements the patient can use reliably. Asha uses these answers to recommend a communication interface; this is not a medical assessment. Only the caregiver link can edit this setup.</p></div>
     <div class="grid" style="align-items:start">
@@ -29,7 +29,7 @@
             <div class="field"><label for="voicePitch">Pitch</label><div class="range-row"><input id="voicePitch" type="range" min="0.6" max="1.4" step="0.05" value="1"><output id="voicePitchValue">1.00</output></div></div>
             <div class="field"><label>&nbsp;</label><button class="btn" id="voicePreview" type="button">▶ Preview Asha voice</button></div>
           </div>
-          <div class="actions"><button class="btn primary" id="saveProfile" type="submit">Create patient setup</button><span id="formStatus" role="status" class="small muted"></span></div>
+          <div class="actions"><button class="btn primary" id="saveProfile" type="submit">Create patient setup</button><a class="btn primary" id="nextPair" href="../pair/" hidden>Next: pair patient device →</a><span id="formStatus" role="status" class="small muted"></span></div>
         </form>
       </section>
       <div>
@@ -44,11 +44,12 @@
         <section class="card" style="margin-top:16px"><h2>Live caregiver view</h2><p>Keep this page open on device one. It refreshes while open and can show browser notifications with permission.</p><div class="actions"><button class="btn" id="notificationsButton" type="button">Enable browser notifications</button><span id="pollState" role="status" class="small muted">Waiting for a patient profile.</span></div></section>
       </div>
     </div>
-    <section style="margin-top:27px"><div class="dashboard-head"><div><h2>My linked patient IDs</h2><p>Assessment, recommended mode and most recent signal.</p></div><button class="btn" id="refreshButton" type="button">Refresh now</button></div><div id="patients" class="patient-list"><div class="empty">No patient linked yet. Complete the assessment above.</div></div></section>
+    <section id="live" style="margin-top:27px"><div class="dashboard-head"><div><h2>My linked patient IDs</h2><p>Assessment, recommended mode and most recent signal.</p></div><button class="btn" id="refreshButton" type="button">Refresh now</button></div><div id="patients" class="patient-list"><div class="empty">No patient linked yet. Complete the assessment above.</div></div></section>
     <section style="margin-top:29px"><div class="dashboard-head"><div><h2>Alerts and requests</h2><p>New events from the patient device appear here. A browser notification is not a phone call.</p></div></div><div id="alerts" class="alert-list"><div class="empty">No events yet.</div></div></section>
     <p class="notice warn small" style="margin-top:25px">Keep a real caregiver present. Browser tabs can sleep, lose network, or close; this is not an emergency notification system. Profiles expire after seven days and can be deleted below.</p>
   </main>
   <script type="module" src="./app.js"></script>
+  <script src="../asha-nav.js" defer></script>
   <script src="../asha-overlay.js" data-asha-context="Caregiver assessment and live patient events" defer></script>
 </body>
 </html>

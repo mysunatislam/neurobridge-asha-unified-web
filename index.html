@@ -11,7 +11,7 @@
 <body>
   <header class="topbar">
     <a class="brand" href="./">NeuroBridge <span>Asha</span></a>
-    <nav aria-label="Main navigation"><a href="./modules/">Explore modules</a><a href="./caregiver/">Caregiver</a><button class="icon-btn" type="button" data-theme-toggle aria-label="Toggle light or dark mode">☀ Light</button></nav>
+    <nav aria-label="Main navigation"><a href="./caregiver/">Assessment</a><a href="./pair/">Pair devices</a><a href="./modules/">Modules</a><button class="icon-btn" type="button" data-theme-toggle aria-label="Toggle light or dark mode">☀ Light</button></nav>
   </header>
   <main class="shell landing">
     <section class="landing-copy">
@@ -28,6 +28,7 @@
     </div>
   </main>
   <script type="module">import { wireTheme } from './asha-flow.js'; wireTheme();</script>
+  <script src="./asha-nav.js" defer></script>
   <script src="./asha-overlay.js" data-asha-context="Asha welcome and caregiver setup" defer></script>
 </body>
 </html>

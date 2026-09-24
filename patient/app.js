@@ -35,7 +35,9 @@ function explanation() {
   if (!profile) return '';
   const visual = profile.assessment.canSee ? 'Visual prompts are enabled.' : 'Visual prompts may not be accessible.';
   const audio = profile.assessment.canHear ? 'I can speak aloud.' : 'Audio guidance is off because hearing was marked unavailable.';
-  return `I am here. Your caregiver selected ${profile.route.label}. ${profile.route.reason} ${visual} ${audio}`;
+  const speech = profile.route.suggestions?.some((item) => item.mode === 'senseassist')
+    ? 'SenseAssist is also suggested because some speech is available.' : '';
+  return `I am here. Your caregiver selected ${profile.route.label}. ${profile.route.reason} ${speech} ${visual} ${audio}`;
 }
 async function loadProfile() {
   if (!credentials) return;
@@ -47,6 +49,15 @@ async function loadProfile() {
     $('modeName').textContent = profile.route.label;
     $('modeReason').textContent = profile.route.reason;
     $('modeLink').href = new URL(profile.route.path, siteBase).href;
+    const secondary = $('secondaryModes');
+    secondary.replaceChildren();
+    for (const suggestion of profile.route.suggestions || []) {
+      const link = document.createElement('a');
+      link.className = 'btn'; link.href = new URL(suggestion.path, siteBase).href;
+      link.target = '_blank'; link.rel = 'noopener';
+      link.textContent = `Also suggested: ${suggestion.label} →`;
+      secondary.append(link);
+    }
     $('speakIntro').hidden = !profile.assessment.canHear;
     $('connectionText').textContent = 'Connected to caregiver channel';
     $('connectionDot').classList.add('online');

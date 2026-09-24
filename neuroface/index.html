@@ -195,6 +195,7 @@
   <!-- Maira cloud AI -->
   <section class="card glass">
     <h2>☁ Maira Cloud AI <small>optional second opinion · opt-in</small></h2>
+    <p class="hint">For the public app, use the floating Asha companion for secure Maira chat; its keys stay on the server. The direct-key controls below are legacy local testing tools and may be blocked by browser cross-origin rules. Do not paste private keys into a shared device.</p>
     <div class="pill" id="mairaStatus"><span class="dot idle"></span> checking…</div>
     <div class="fields">
       <label>API base <input id="mairaBase" type="text" inputmode="url" placeholder="https://api.recommender.gigalogy.com" /></label>
@@ -217,23 +218,33 @@
     <p class="hint">Keys stay in this browser's localStorage — never in code. Research demo, not a diagnosis.</p>
   </section>
 
-  <!-- 10. Comm mode -->
+  <!-- 10. FaceSpeak studio -->
   <section class="card glass span2">
-    <h2>💬 Communication Mode <small>intentional patient commands</small></h2>
-    <div class="comm-grid">
-      <div class="comm-map">
-        <div class="cmd-rule"><b>3× intentional blink</b><span>looking at camera → “I need water”</span><i id="progWater">0/3</i></div>
-        <div class="cmd-rule"><b>3× head left</b><span>turn + return → “I need food”</span><i id="progFood">0/3</i></div>
-        <div class="cmd-rule"><b>3× head right</b><span>turn + return → “I need to go to toilet”</span><i id="progToilet">0/3</i></div>
-        <div class="cmd-rule"><b>Nod + smile</b><span>together → “I am okay, thank you”</span><i id="progOkay">—</i></div>
-        <label class="switch"><input type="checkbox" id="tglComm" checked /><span></span> enable commands</label>
-        <label class="switch"><input type="checkbox" id="tglVoice" /><span></span> speak commands</label>
-      </div>
+    <h2>🗣 FaceSpeak <small>trainable face-gesture communication</small></h2>
+    <div class="face-tabs" role="tablist">
+      <button class="face-tab active" data-ftab="calibrate">Calibrate</button>
+      <button class="face-tab" data-ftab="speak">Speak mode</button>
+      <button class="face-tab" data-ftab="evaluate">Evaluate</button>
+      <button class="face-tab" data-ftab="log">Log</button>
+    </div>
+    <p class="hint">Rest is protected — it defines “no intent”. Record ≥2 steady samples per gesture, then Train. Changing a detector clears that gesture's samples. Thresholds personalize from your Rest vs active samples.</p>
+    <div class="ftab" id="faceTab-calibrate">
+      <div id="faceGestureTable"></div>
+      <div class="row"><button class="btn small ghost" id="btnFaceAdd">+ add face gesture</button></div>
+      <div class="row"><button class="btn primary" id="btnFaceGuide">▶ Start guided calibration</button><button class="btn accent" id="btnFaceTrain">Train model</button></div>
+    </div>
+    <div class="ftab" id="faceTab-speak" hidden>
       <div class="comm-out">
         <div class="cmd-display" id="cmdDisplay">—</div>
-        <div id="cmdLog" class="log small"></div>
+        <div class="kv"><span>Status</span><b id="faceSpeakStatus">watching…</b></div>
+        <div class="row">
+          <label class="switch"><input type="checkbox" id="tglComm" checked /><span></span> enable commands</label>
+          <label class="switch"><input type="checkbox" id="tglVoice" /><span></span> speak commands</label>
+        </div>
       </div>
     </div>
+    <div class="ftab" id="faceTab-evaluate" hidden><div id="faceEvalTable"></div></div>
+    <div class="ftab" id="faceTab-log" hidden><div id="cmdLog" class="log small"></div></div>
   </section>
 </main>
 
@@ -267,6 +278,7 @@
 <script src="src/activity.js"></script>
 <script src="utils/maira.js"></script>
 <script src="app.js"></script>
-<script src="../asha-overlay.js" data-asha-context="NeuroSense face and movement dashboard" defer></script>
+<script src="../asha-nav.js" defer></script>
+<script src="../asha-overlay.js" data-asha-context="NeuroFace Sense and FaceSpeak dashboard" defer></script>
 </body>
 </html>
