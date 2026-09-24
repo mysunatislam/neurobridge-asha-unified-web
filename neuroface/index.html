@@ -21,27 +21,21 @@
     </div>
   </div>
   <div class="top-actions">
-    <a class="btn ghost" href="./fingerspeak.html">✋ FingerSpeak hand communication</a>
     <div class="pill" id="modelStatus"><span class="dot idle"></span> models: loading…</div>
     <div class="pill" id="camStatus"><span class="dot idle"></span> camera: off</div>
     <button class="btn primary" id="btnCamera">▶ Start Camera</button>
     <button class="btn ghost" id="btnDemo">Demo Mode</button>
-    <button class="btn accent" id="btnCalibrate">◉ Calibrate Patient</button>
+    <button class="btn accent" id="btnCalibrate">◉ Calibrate FaceSpeak</button>
   </div>
 </header>
 
 <div class="disclaimer glass">
   ⚠ <strong>Research / demo prototype only — NOT a medical diagnostic device.</strong>
-  Camera processing runs locally. Optional Maira snapshot upload requires your explicit action.
+  Camera processing runs locally. FaceSpeak commands require live calibration; this page does not place emergency calls.
   <span id="fpsBadge">FPS — · conf —</span>
 </div>
 
 <main class="grid">
-  <section class="card glass span2">
-    <h2>✋ FingerSpeak <small>Hand gesture communication</small></h2>
-    <p>Use a separate hand-tracking mode to calibrate personal gestures and speak chosen phrases. It uses the camera only when you open the module and enable it; facial tracking stops when you leave this page.</p>
-    <a class="btn primary" href="./fingerspeak.html">Open FingerSpeak →</a>
-  </section>
   <!-- 1. Camera view -->
   <section class="card glass span2">
     <div class="card-head">
@@ -192,34 +186,8 @@
     <div class="row"><button class="btn small ghost" id="btnSmileCheck">😁 check smile signal range</button><button class="btn small ghost" id="btnDevCheck">↔ deviation check (personal threshold)</button></div>
   </section>
 
-  <!-- Maira cloud AI -->
-  <section class="card glass">
-    <h2>☁ Maira Cloud AI <small>optional second opinion · opt-in</small></h2>
-    <p class="hint">For the public app, use the floating Asha companion for secure Maira chat; its keys stay on the server. The direct-key controls below are legacy local testing tools and may be blocked by browser cross-origin rules. Do not paste private keys into a shared device.</p>
-    <div class="pill" id="mairaStatus"><span class="dot idle"></span> checking…</div>
-    <div class="fields">
-      <label>API base <input id="mairaBase" type="text" inputmode="url" placeholder="https://api.recommender.gigalogy.com" /></label>
-      <label>User ID <input id="mairaUser" type="text" autocomplete="off" placeholder="required" /></label>
-      <label>Project key <input id="mairaProject" type="password" autocomplete="off" placeholder="optional" /></label>
-      <label>API key <input id="mairaKey" type="password" autocomplete="off" placeholder="optional" /></label>
-      <label>Bearer token <input id="mairaBearer" type="password" autocomplete="off" placeholder="required unless API key" /></label>
-      <label>GPT profile ID <input id="mairaProfile" type="text" autocomplete="off" placeholder="optional" /></label>
-    </div>
-    <div class="row">
-      <button class="btn small primary" id="btnMairaSave">save keys (this browser only)</button>
-      <button class="btn small ghost" id="btnMairaTest">test link</button>
-      <button class="btn small ghost" id="btnMairaClear">forget keys</button>
-    </div>
-    <div class="row">
-      <button class="btn small accent" id="btnMairaAnalyze">✦ premium session analysis</button>
-      <button class="btn small ghost" id="btnMairaVision">◉ vision second opinion</button>
-    </div>
-    <div id="mairaResult" class="log"><div class="log-empty">Local pipeline runs fully offline. Configure keys above, then run a premium analysis — snapshots leave this device only to your configured API.</div></div>
-    <p class="hint">Keys stay in this browser's localStorage — never in code. Research demo, not a diagnosis.</p>
-  </section>
-
   <!-- 10. FaceSpeak studio -->
-  <section class="card glass span2">
+  <section class="card glass span2" id="facespeak">
     <h2>🗣 FaceSpeak <small>trainable face-gesture communication</small></h2>
     <div class="face-tabs" role="tablist">
       <button class="face-tab active" data-ftab="calibrate">Calibrate</button>
@@ -227,10 +195,10 @@
       <button class="face-tab" data-ftab="evaluate">Evaluate</button>
       <button class="face-tab" data-ftab="log">Log</button>
     </div>
-    <p class="hint">Rest is protected — it defines “no intent”. Record ≥2 steady samples per gesture, then Train. Changing a detector clears that gesture's samples. Thresholds personalize from your Rest vs active samples.</p>
+    <p class="hint">Start the live camera, then follow each prompt. Rest samples are saved only while neutral; gesture samples are saved only after the requested movement is detected. Nothing is learned from Demo Mode. Commands stay off until calibrated.</p>
+    <p id="faceGuidePrompt" class="guide-prompt" role="status" aria-live="polite">Start the live camera to calibrate FaceSpeak.</p>
     <div class="ftab" id="faceTab-calibrate">
       <div id="faceGestureTable"></div>
-      <div class="row"><button class="btn small ghost" id="btnFaceAdd">+ add face gesture</button></div>
       <div class="row"><button class="btn primary" id="btnFaceGuide">▶ Start guided calibration</button><button class="btn accent" id="btnFaceTrain">Train model</button></div>
     </div>
     <div class="ftab" id="faceTab-speak" hidden>
@@ -276,7 +244,6 @@
 <script src="src/eye-signal.js"></script>
 <script src="src/lip-watch.js"></script>
 <script src="src/activity.js"></script>
-<script src="utils/maira.js"></script>
 <script src="app.js"></script>
 <script src="../asha-nav.js" defer></script>
 <script src="../asha-overlay.js" data-asha-context="NeuroFace Sense and FaceSpeak dashboard" defer></script>
