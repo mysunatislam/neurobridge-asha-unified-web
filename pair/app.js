@@ -26,7 +26,7 @@ for (const entry of caregiverPatients()) {
   const link = linkFor('patient', entry.patientId, entry.patientToken);
   const fullLink = document.createElement('div'); fullLink.className = 'link-box'; fullLink.textContent = link; card.append(fullLink);
   const actions = document.createElement('div'); actions.className = 'actions';
-  actions.append(button('Copy patient link', link), button('Copy ID + private code', `${entry.patientId}:${entry.patientToken}`));
+  actions.append(button('Copy patient link', link), button('Copy patient ID', entry.patientId), button('Copy private code', entry.patientToken));
   if (navigator.share) {
     const share = document.createElement('button'); share.type = 'button'; share.className = 'btn'; share.textContent = 'Share patient link';
     share.addEventListener('click', () => navigator.share({ title: 'Asha patient link', url: link }).catch(() => {}));
@@ -39,7 +39,10 @@ document.getElementById('connectPatient').addEventListener('click', () => {
   const value = document.getElementById('pairInput').value.trim();
   let patientId, token;
   try {
-    if (/^https?:\/\//i.test(value)) {
+    if (!value) {
+      patientId = document.getElementById('pairId').value.trim().toUpperCase();
+      token = document.getElementById('pairToken').value.trim();
+    } else if (/^https?:\/\//i.test(value)) {
       const url = new URL(value);
       if (url.origin !== location.origin || url.pathname !== new URL('patient/', siteBase).pathname) throw new Error();
       const fragment = new URLSearchParams(url.hash.slice(1));
