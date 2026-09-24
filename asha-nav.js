@@ -8,6 +8,10 @@
     #asha-pages-menu[hidden]{display:none}#asha-pages-menu a{display:flex;align-items:center;min-height:44px;padding:9px;border-radius:9px;background:#1b3954;color:#f4ffff;text-decoration:none;font:650 13px system-ui}#asha-pages-menu a:hover,#asha-pages-menu a:focus-visible{background:#2c6273;outline:2px solid #8df5f2}
     html[data-theme=light] #asha-pages-button,html[data-theme=light] #asha-pages-menu{background:#fff;color:#18344a;border-color:#00818b;box-shadow:0 8px 22px #5677a044}html[data-theme=light] #asha-pages-menu a{background:#e8f3f8;color:#18344a}
   `;
+  if (location.pathname.endsWith('/asha.html')) {
+    // Keep navigation clear of Flutter's fixed chat composer on small screens.
+    style.textContent += '#asha-pages-button{bottom:106px}#asha-pages-menu{bottom:162px}';
+  }
   document.head.append(style);
   const menu = document.createElement('nav'); menu.id = 'asha-pages-menu'; menu.hidden = true; menu.setAttribute('aria-label', 'Go to another page');
   const pages = [
